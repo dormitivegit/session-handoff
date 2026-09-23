@@ -1,17 +1,18 @@
 ---
 name: session-handoff
-description: Generate an evidence-grounded, capability-elevating handoff that lets a fresh session inherit the previous session's understanding, technical direction, current state, ongoing task, and future development path, and start from a higher baseline because this window's lessons, corrected errors, and methods travel forward as reusable capability. Use at a session boundary, context-pressure point, phase transition, model/agent transfer, or before continuing work in a fresh session. Also use when a workstream keeps persistent status outside the conversation — a status file, SOT, charter, decision log, or task register — and it is ambiguous whether a material state change has to be recorded there.
+description: Write an evidence-grounded, capability-elevating session handoff (context handoff, 会话交接 / 交接件) that lets a fresh AI agent session inherit the previous session's understanding, technical direction, current state, ongoing task, and future development path — so it does not lose context, re-ask settled questions, repeat corrected mistakes, or act on stale state — and start from a higher baseline because lessons, corrected errors, and methods travel forward as reusable capability. Use at a session boundary, context-pressure point, phase transition, model/agent transfer, or before continuing work in a fresh session. Also use when a workstream keeps persistent status outside the conversation — a status file, SOT, charter, decision log, or task register — and it is ambiguous whether a material state change has to be recorded there.
 ---
 
 # Session Handoff
 
 <!--
 CONTRACT_VERSION = 2.3
-CARRIER_VERSION  = 2.4.27
+CARRIER_VERSION  = 2.4.28
 PROGRESS_AXIS_RULE=$SKILL_ROOT/scripts/lint_handoff.py:progress_axis_rule
 METHOD_INCREMENT_LANDING=$SKILL_ROOT/scripts/lint_handoff.py:method_increment_landing_rule
 RETIREMENT_OBSERVER=$SKILL_ROOT/scripts/lint_handoff.py:concretization_rate_rule
 CLAIM_LEDGER =
+  COMMITS = 30e9819
 -->
 
 A session handoff is a **capability-elevating transfer of understanding and work** — the next window should start higher than this one ended — not a minimal state packet, a chat summary, a fixed form, or an execution authorization.

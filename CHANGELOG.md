@@ -3,6 +3,12 @@
 Versions follow `CARRIER_VERSION`. Earlier versions were developed in a private working copy; this repository
 begins at 2.4.24. Every release here has passed the acceptance run described in `README.md`.
 
+## 2.4.28 — 2026-09-23
+
+- Skill description now names the problem it solves and the terms people search for (session / context handoff), so
+  agents and search can find it; the trigger sentence is unchanged.
+- README states the problem, what you get, a quick start, an example, when to use it, and how it compares.
+
 ## 2.4.27 — 2026-09-22
 
 - Standing rulings in a method increment must carry a verbatim-source anchor (`<transcript> @ <timestamp>`), so the

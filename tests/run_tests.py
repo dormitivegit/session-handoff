@@ -41,7 +41,7 @@ def hermetic_env(home: Path, extra: "dict | None" = None) -> dict:
     env.update(extra or {})
     return env
 
-CARRIER_VERSION = "2.4.27"
+CARRIER_VERSION = "2.4.28"
 FIXTURES = TESTS_DIR / "fixtures"
 
 EXPECTATIONS: dict[str, dict[str, object]] = {

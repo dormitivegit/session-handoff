@@ -12,7 +12,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-CARRIER_VERSION = "2.4.27"
+CARRIER_VERSION = "2.4.28"
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 SKILL_ROOT_TOKEN = "$SKILL_ROOT"
