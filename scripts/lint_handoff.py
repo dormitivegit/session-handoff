@@ -12,7 +12,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-CARRIER_VERSION = "2.4.28"
+CARRIER_VERSION = "2.4.29"
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 SKILL_ROOT_TOKEN = "$SKILL_ROOT"
@@ -143,6 +143,25 @@ def _covered(spans: list[tuple[int, int]], start: int, end: int) -> bool:
     return any(a <= start and end <= b for a, b in spans)
 
 
+HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+
+
+def html_comment_spans(lines: list[str]) -> dict[int, list[tuple[int, int]]]:
+    import bisect
+    starts, pos = [], 0
+    for l in lines:
+        starts.append(pos)
+        pos += len(l) + 1
+    out: dict[int, list[tuple[int, int]]] = {}
+    for m in HTML_COMMENT_RE.finditer("\n".join(lines)):
+        a, b = m.span()
+        la, lb = bisect.bisect_right(starts, a) - 1, bisect.bisect_right(starts, b - 1) - 1
+        for ln in range(la, lb + 1):
+            out.setdefault(ln, []).append((a - starts[ln] if ln == la else 0,
+                                           b - starts[ln] if ln == lb else len(lines[ln])))
+    return out
+
+
 def corpus_note(lines: list[str]) -> str:
     fenced = fenced_line_set(lines)
     has_cjk = any("\u4e00" <= ch <= "\u9fff" for line in lines for ch in line)
@@ -154,6 +173,7 @@ def placeholder_rule(
     lines: list[str], corpus: str
 ) -> tuple[list[str], RuleRead]:
     fenced = fenced_line_set(lines)
+    comments = html_comment_spans(lines)
     errors: list[str] = []
     hits: list[dict] = []
     action_counts: dict[str, int] = {}
@@ -171,6 +191,9 @@ def placeholder_rule(
                 start, end = m.span()
                 if _covered(spans, start, end):
                     hits.append(_hit(line_no, start, m.group(0), "inline-code-span"))
+                    continue
+                if _covered(comments.get(line_no, []), start, end):
+                    hits.append(_hit(line_no, start, m.group(0), "html-comment"))
                     continue
                 if pid in NOUN_PATTERN_IDS:
                     if not _covered(angles, start, end):

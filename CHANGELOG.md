@@ -3,6 +3,11 @@
 Versions follow `CARRIER_VERSION`. Earlier versions were developed in a private working copy; this repository
 begins at 2.4.24. Every release here has passed the acceptance run described in `README.md`.
 
+## 2.4.29 — 2026-09-23
+
+- The placeholder rule no longer treats text inside HTML comments (single-line or multi-line) as unfilled slots:
+  comments are not rendered, so an angle bracket there is not a value. New discrimination-matrix row.
+
 ## 2.4.28 — 2026-09-23
 
 - Skill description now names the problem it solves and the terms people search for (session / context handoff), so

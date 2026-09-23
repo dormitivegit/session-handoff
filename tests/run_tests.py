@@ -41,7 +41,7 @@ def hermetic_env(home: Path, extra: "dict | None" = None) -> dict:
     env.update(extra or {})
     return env
 
-CARRIER_VERSION = "2.4.28"
+CARRIER_VERSION = "2.4.29"
 FIXTURES = TESTS_DIR / "fixtures"
 
 EXPECTATIONS: dict[str, dict[str, object]] = {
@@ -632,6 +632,15 @@ DISCRIMINATION_MATRIX = [
         "rule": "cross_ref_path_rule",
     },
     {
+        "id": "PH1.html_comment_not_slot",
+        "fix": "HTML 注释（单行与跨行）里的尖括号不是未填槽位（注释不渲染）",
+        "mutate": [('                if _covered(comments.get(line_no, []), start, end):',
+                    '                if False:')],
+        "probe": "html_comment_slot",
+        "read": "placeholder_actions",
+        "rule": "placeholder_rule",
+    },
+    {
         "id": "RA1.ruling_source_anchor",
         "fix": "A 栏常设裁定须带原声锚 <会话记录> @ <时间>（转述丢原则；锚让下一窗直接读原话）",
         "mutate": [('        if ruling_on and label.startswith("A"):',
@@ -702,6 +711,7 @@ MATRIX_REGISTERED_IDS = frozenset({
     "ML1.same_line_exit",
     "ML2.landing_floor",
     "CR2.pre_fence_line",
+    "PH1.html_comment_not_slot",
     "RA1.ruling_source_anchor",
     "SAT1.prose_is_not_field",
     "EK1.kernel_item_needs_anchor",
@@ -752,6 +762,9 @@ def _probe_inputs(kind, tmp):
     if kind == "crossref_pre_fence":
         return ("# probe\n见 30_SESSIONS/ARCHIVE_X/ 下。\n```text\n30_SESSIONS/ARCHIVE_Y/ 在围栏内\n```\n"
                 + duty, {}, {})
+    if kind == "html_comment_slot":
+        return ("## Note\n<!-- 单行旁注 -->\n<!-- 跨行旁注：路径写成\n     <workstream-root>/docs 这样 -->\n"
+                "NEXT_GATE=<fill-me>\n" + duty, {}, {})
     if kind == "ruling_anchor_20260923":
         return ("## METHOD_INCREMENT\n新立 A1 常设裁定：一次性换处境不防回归 \u21d2 NOT_LANDED=探针\n"
                 "新立 A2 常设裁定：先全局梳理再动局部 \u21d2 NOT_LANDED=探针\n"
@@ -799,6 +812,8 @@ def _extract(result, what):
         return str(reads["altitude-saturation"]["decision"])[:60]
     if what == "crossref_hit_lines":
         return tuple(h["line"] for h in reads["cross-ref-absolute-path"]["hits"])
+    if what == "placeholder_actions":
+        return sum(1 for h in reads["placeholder-action-vs-mention"]["hits"] if h.get("context") == "action")
     if what == "ruling_unanchored":
         return sum(1 for h in reads["method-increment-landing"]["hits"]
                    if h.get("context") == "no source anchor")

@@ -7,12 +7,13 @@ description: Write an evidence-grounded, capability-elevating session handoff (c
 
 <!--
 CONTRACT_VERSION = 2.3
-CARRIER_VERSION  = 2.4.28
+CARRIER_VERSION  = 2.4.29
 PROGRESS_AXIS_RULE=$SKILL_ROOT/scripts/lint_handoff.py:progress_axis_rule
 METHOD_INCREMENT_LANDING=$SKILL_ROOT/scripts/lint_handoff.py:method_increment_landing_rule
 RETIREMENT_OBSERVER=$SKILL_ROOT/scripts/lint_handoff.py:concretization_rate_rule
 CLAIM_LEDGER =
   COMMITS = 30e9819
+  COMMITS = 7b3f31a
 -->
 
 A session handoff is a **capability-elevating transfer of understanding and work** — the next window should start higher than this one ended — not a minimal state packet, a chat summary, a fixed form, or an execution authorization.
