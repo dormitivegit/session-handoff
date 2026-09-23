@@ -1,0 +1,21 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # the version axis and the frozen-face ratchet read git history
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: git identity for the version-axis self-test (it creates throwaway repos)
+        run: git config --global user.name ci && git config --global user.email ci@example.invalid
+      - run: python -B tests/run_tests.py
+      - run: python -B scripts/version_axis_check.py
+      - run: python -B scripts/version_axis_check.py --self-test
+      - run: python -B scripts/lint_handoff.py SKILL.md
