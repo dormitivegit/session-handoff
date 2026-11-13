@@ -53,6 +53,24 @@ Switching sessions is where long agent work quietly loses ground:
 4. Start the next session with the handoff's opening. The receiver re-runs the handoff's recompute commands, takes
    the cleared first action, and writes its receipt.
 
+## What is measured, and what is not
+
+| Measured | Not measured |
+|---|---|
+| handoff form — 18 lint rules (9 with a registered test showing they catch their target failure) | whether the handoff's content is true |
+| a progress readout computed from the session transcript, reproducible byte-for-byte (`scripts/handoff_readout.py`) | whether the readout's detectors are valid for your sessions — register and gate your own lessons |
+| whether the receiving session's first tool calls read the handoff file | whether the receiver understood it or resumed correctly |
+| — | whether this skill reduces repeated mistakes compared with a plain summary (not yet tested) |
+
+Run the readout after the handoff's last edit and paste its output under `PROGRESS_AXIS=`:
+
+```bash
+python3 scripts/handoff_readout.py --session "/path/to/session.jsonl" --handoff "/path/to/HANDOFF.md"
+```
+
+The public lesson table is empty, so per-lesson counts print `无登记模式` ("no registered patterns") until you add
+yours; every other line works as shipped. Line meanings and the registration procedure: `references/readout.md`.
+
 ## What it looks like
 
 The top of a handoff — the Continuity Kernel:
