@@ -47,7 +47,7 @@ Switching sessions is where long agent work quietly loses ground:
 3. Lint it:
 
    ```bash
-   python3 scripts/lint_handoff.py HANDOFF.md
+   python3 scripts/lint_handoff.py HANDOFF_billing-migration.md
    ```
 
 4. Start the next session with the handoff's opening. The receiver re-runs the handoff's recompute commands, takes
@@ -65,11 +65,13 @@ Switching sessions is where long agent work quietly loses ground:
 Run the readout after the handoff's last edit and paste its output under `PROGRESS_AXIS=`:
 
 ```bash
-python3 scripts/handoff_readout.py --session "/path/to/session.jsonl" --handoff "/path/to/HANDOFF.md"
+python3 scripts/handoff_readout.py --session "/path/to/session.jsonl" --handoff "/path/to/HANDOFF_billing-migration.md"
 ```
 
 The public lesson table is empty, so per-lesson counts print `无登记模式` ("no registered patterns") until you add
-yours; every other line works as shipped. Line meanings and the registration procedure: `references/readout.md`.
+yours; every other line works as shipped. Name handoffs `HANDOFF_*.md`: the receive line only recognizes that pattern,
+and only when the receiving session names the file in one of its first three messages. Line meanings and the
+registration procedure: `references/readout.md`.
 
 ## What it looks like
 
