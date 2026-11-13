@@ -8,11 +8,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-CHECKER_VERSION = "1.1.1"
+CHECKER_VERSION = "1.2.0"
 FIELD = "SKILL_VERSION_AXIS"
+
+LEDGER = "VERSION_LEDGER.md"
 
 CONTRACT_FACE = [
     "SKILL.md",
+    LEDGER,
     "references/handoff-method.md",
     "references/window-altitude-and-method-increment.md",
     "assets/handoff-outline.md",
@@ -69,6 +72,7 @@ def check(root: Path, prefix: str = "") -> tuple[int, list[str]]:
     detail: list[str] = []
 
     skill = _read(root, prefix + "SKILL.md" if prefix else "SKILL.md")
+    ledger = _read(root, prefix + LEDGER if prefix else LEDGER)
     base = root / prefix if prefix else root
 
     vers = RE_SKILL_VER.findall(skill)
@@ -99,9 +103,13 @@ def check(root: Path, prefix: str = "") -> tuple[int, list[str]]:
     gitset = set(log)
     head = log[0]
 
+    stray = RE_COMMITS.findall(skill)
+    if stray:
+        fails.append("P3' SKILL.md 内残留 %d 行认领 —— 认领面只认 %s" % (len(stray), LEDGER))
+
     claimed: set[str] = set()
     unknown: list[str] = []
-    for line in RE_COMMITS.findall(skill):
+    for line in RE_COMMITS.findall(ledger):
         for tok in line.split():
             if not RE_SHA.match(tok):
                 continue
@@ -190,12 +198,12 @@ def self_test() -> int:
                                   capture_output=True, text=True).stdout.strip()
 
         def skillmd(ver: str, commits: list[str]) -> None:
-            body = ["<!--", "CONTRACT_VERSION = 2.3", "CARRIER_VERSION = " + ver,
-                    "COMMITS_CONTRACT = 判据说明行，不得被 COMMITS 判据吃掉"]
-            if commits:
-                body.append("  COMMITS = " + " ".join(commits))
-            body += ["-->", ""]
+            body = ["<!--", "CONTRACT_VERSION = 2.3", "CARRIER_VERSION = " + ver, "-->", ""]
             (td / "SKILL.md").write_text("\n".join(body), encoding="utf-8")
+            led = ["COMMITS_CONTRACT = 判据说明行，不得被 COMMITS 判据吃掉"]
+            if commits:
+                led.append("  COMMITS = " + " ".join(commits))
+            (td / LEDGER).write_text("\n".join(led) + "\n", encoding="utf-8")
 
         skillmd("9.9.9", [])
         c1 = commit("c1")
@@ -230,6 +238,16 @@ def self_test() -> int:
             (td / "SKILL.md").read_text(encoding="utf-8") + "CARRIER_VERSION = 7.7.7\n",
             encoding="utf-8")
         run(td, "真阳⑤ 声明行重复", 1, "应为 1")
+
+        skillmd("9.9.9", cur[1:])
+        (td / "SKILL.md").write_text(
+            (td / "SKILL.md").read_text(encoding="utf-8") + "  COMMITS = " + cur[1] + "\n",
+            encoding="utf-8")
+        run(td, "真阳⑥ SKILL.md 残留认领行（双账）", 1, "残留")
+
+        skillmd("9.9.9", cur[1:])
+        (td / LEDGER).unlink()
+        run(td, "真阳⑦ 认领账缺失 ⇒ 装置错误", 70, "VERSION_LEDGER.md")
 
     print("SELF_TEST=%s" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 1

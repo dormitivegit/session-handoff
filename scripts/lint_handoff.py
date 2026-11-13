@@ -12,7 +12,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-CARRIER_VERSION = "2.4.29"
+CARRIER_VERSION = "2.6.1"
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 SKILL_ROOT_TOKEN = "$SKILL_ROOT"
@@ -1104,9 +1104,11 @@ CROSSREF_DIR_RE = re.compile(r"(?<![\w/~.$])(\d{2}_[A-Z][A-Z0-9_]+)/(?=[A-Za-z0-
 CROSSREF_ROOTED_RE = re.compile(r"[/~$][\w./$-]*$")
 
 
-MI_LANDING_ENTRY_RE = re.compile(r"^\s*(?:新增\s+|新立\s+)?([A-Z]\d{1,2})[\s\u3000]")
+MI_LANDING_ENTRY_RE = re.compile(r"^\s*(?:新增\s+|新立\s+)?([A-Z]\d+)[\s\u3000]")
 MI_LANDING_OUT_RE = re.compile(r"\u21d2[ \t]*(?:G\.(\d+)|NOT_LANDED[ \t]*=[ \t]*(\S))")
 MI_LANDING_ENTRIES_ENV = "SESSION_HANDOFF_ENTRIES"
+MI_LANDING_ENTRIES_DEFAULT = ""
+MI_LEDGER_ID_RE = re.compile(r"(?m)^#{1,6}[ \t]+G\.(\d+)\b")
 MI_LANDING_FLOOR = "20260920"
 MI_RULING_ANCHOR_FLOOR = "20260923"
 
@@ -1132,9 +1134,31 @@ def method_increment_landing_rule(lines: list[str], corpus: str, path=None) -> t
             entries.append((m.group(1), i, [lines[i]]))
         elif entries:
             entries[-1][2].append(lines[i])
-    ledger = os.environ.get(MI_LANDING_ENTRIES_ENV, "").strip()
-    dangling_face = "RUN" if ledger else "NOT_RUN"
+    _raw = os.environ.get(MI_LANDING_ENTRIES_ENV)
+    ledger = (MI_LANDING_ENTRIES_DEFAULT if _raw is None else _raw).strip()
     hits: list[dict] = []
+    known_ids: "set[str] | None" = None
+    if not ledger:
+        dangling_face = "NOT_RUN"
+    else:
+        try:
+            _ledger_text = resolve_path_token(ledger).read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            dangling_face = "NOT_RUN(unreadable)"
+            warnings.append(
+                "$%s is set but the registry could not be opened (%s) — the dangling-id check did not run; "
+                "it is reported NOT_RUN, not RUN" % (MI_LANDING_ENTRIES_ENV, exc.__class__.__name__))
+        else:
+            known_ids = set(MI_LEDGER_ID_RE.findall(_ledger_text))
+            if known_ids:
+                dangling_face = "RUN"
+            else:
+                known_ids = None
+                dangling_face = "NOT_RUN(no G.N heading parsed)"
+                warnings.append(
+                    "$%s points at a file with no `### G.N` heading — 0 registry ids parsed, so the dangling-id "
+                    "check did not run (an opened-but-empty face is reported, not read as green)"
+                    % MI_LANDING_ENTRIES_ENV)
     without = 0
     ruling_on = _d.group(1) >= MI_RULING_ANCHOR_FLOOR
     rulings = rulings_anchored = 0
@@ -1151,6 +1175,13 @@ def method_increment_landing_rule(lines: list[str], corpus: str, path=None) -> t
                     "behind the instance gets lost" % label)
         if MI_LANDING_OUT_RE.search("\n".join(body)):
             hits.append(_hit(line_no, 0, label, "exit declared"))
+            if known_ids is not None:
+                for _m in MI_LANDING_OUT_RE.finditer("\n".join(body)):
+                    if _m.group(1) and _m.group(1) not in known_ids:
+                        hits.append(_hit(line_no, 0, label + " G." + _m.group(1), "dangling ledger id"))
+                        warnings.append(
+                            "METHOD_INCREMENT entry %s declares landing at G.%s, which is not a heading in $%s — "
+                            "the declared exit does not exist" % (label, _m.group(1), MI_LANDING_ENTRIES_ENV))
             continue
         without += 1
         hits.append(_hit(line_no, 0, label, "no exit declaration"))
@@ -1175,8 +1206,11 @@ def method_increment_landing_rule(lines: list[str], corpus: str, path=None) -> t
 
 EVOLUTION_KERNEL_FLOOR = "20260923"
 EVOLUTION_KERNEL_MAX_ITEMS = 12
+EK_INTEGRAL_FLOOR = "20261018"
 EK_HEAD_RE = re.compile(r"^\s*(?:#{1,6}\s*)?EVOLUTION_KERNEL\b")
-EK_ITEM_RE = re.compile(r"^\s*(K\d{1,3})[\s:：.]")
+EK_ITEM_RE = re.compile(r"^\s*(K\d+)[\s:：.]")
+EK_RANGE_LINE_RE = re.compile(r"^\s*(?:[-*+]\s*)?K(\d+)[ \t]*(?:[–—~～-]|到|至|\.\.\.?|…)[ \t]*K(\d+)")
+EK_RANGE_CARRY_RE = re.compile(r"同前代|前代|继承|保留|carried|inherit", re.IGNORECASE)
 EK_POINTER_RE = re.compile(r"(?<![\w/$])(" + PATH_ROOT_ALT + r"[\w./~-]+\.(?:py|sh))(?::[A-Za-z_][\w-]*)?")
 
 
@@ -1205,25 +1239,52 @@ def evolution_kernel_rule(lines: list[str], corpus: str, path=None) -> tuple[lis
             decision = "SKIP: no EVOLUTION_KERNEL section (below floor %s or undated — not required)" % EVOLUTION_KERNEL_FLOOR
         return warnings, RuleRead(rule_id=rid, searched=searched, hits=[], corpus=corpus, decision=decision)
     end = len(lines)
-    for j in range(start + 1, len(lines)):
-        s = lines[j].strip()
-        if MD_HEADING_RE.match(lines[j]) or s.startswith("```") or s.startswith("~~~") \
-                or re.match(r"^[A-Z][A-Z0-9_]*\s*=", lines[j]):
-            end = j
-            break
+    head = MD_HEADING_RE.match(lines[start])
+    fenced: set[int] = set()
+    if head:
+        fenced = fenced_line_set(lines)
+        level = len(head.group(1))
+        for j in range(start + 1, len(lines)):
+            h = MD_HEADING_RE.match(lines[j])
+            if h and j not in fenced and len(h.group(1)) <= level:
+                end = j
+                break
+    else:
+        for j in range(start + 1, len(lines)):
+            s = lines[j].strip()
+            if MD_HEADING_RE.match(lines[j]) or s.startswith("```") or s.startswith("~~~") \
+                    or re.match(r"^[A-Z][A-Z0-9_]*\s*=", lines[j]):
+                end = j
+                break
+    ref_lines = {j for j in range(start, end)
+                 if EK_RANGE_LINE_RE.match(lines[j]) and EK_RANGE_CARRY_RE.search(lines[j])}
     items: list[tuple[str, int, list[str]]] = []
     for j in range(start + 1, end):
-        m = EK_ITEM_RE.match(lines[j])
+        m = None if j in ref_lines else EK_ITEM_RE.match(lines[j])
         if m:
             items.append((m.group(1), j, [lines[j]]))
-        elif items:
+        elif items and j not in ref_lines:
             items[-1][2].append(lines[j])
     base_dir = Path(path).parent if path else Path.cwd()
     hits: list[dict] = []
+    by_ref = 0
+    ref_spans: list[str] = []
+    written = {int(lbl[1:]) for lbl, _j, _b in items}
+    for j in sorted(ref_lines):
+        m = EK_RANGE_LINE_RE.match(lines[j])
+        lo, hi = int(m.group(1)), int(m.group(2))
+        if hi >= lo:
+            by_ref += len(set(range(lo, hi + 1)) - written)
+            ref_spans.append("K%d–K%d" % (lo, hi))
+            hits.append(_hit(j, m.start(1) - 1, m.group(0).strip(), "by reference"))
+    integral_on = (not _d) or _d.group(1) >= EK_INTEGRAL_FLOOR
     unanchored = 0
+    pre_floor = {j for _l, j, _b in items if j in fenced} if not integral_on else set()
     for label, j, body in items:
         if _pa_has_recompute(body, base_dir) or _ek_pointer_ok("\n".join(body)):
             hits.append(_hit(j, 0, label, "anchored"))
+        elif j in pre_floor:
+            hits.append(_hit(j, 0, label, "no anchor · below integral floor, read only"))
         else:
             unanchored += 1
             hits.append(_hit(j, 0, label, "no anchor"))
@@ -1231,13 +1292,30 @@ def evolution_kernel_rule(lines: list[str], corpus: str, path=None) -> tuple[lis
                 "EVOLUTION_KERNEL item %s carries no mechanical anchor (an on-disk mechanism path, a recompute "
                 "command, or a refutation command). An unanchored item is inherited verbatim by every later "
                 "generation — if it is wrong, it is wrong forever." % label)
-    if len(items) > EVOLUTION_KERNEL_MAX_ITEMS:
+    if len(items) - len(pre_floor) > EVOLUTION_KERNEL_MAX_ITEMS:
         warnings.append(
             "EVOLUTION_KERNEL has %d items > budget %d — integrate (merge same-logic items into one) or retire "
             "items whose mechanism has landed, before adding." % (len(items), EVOLUTION_KERNEL_MAX_ITEMS))
-    decision = ("section present but no K-items parsed" if not items else
-                "%d/%d items anchored · budget %d/%d" % (len(items) - unanchored, len(items), len(items),
-                                                         EVOLUTION_KERNEL_MAX_ITEMS))
+    if integral_on and by_ref:
+        warnings.append(
+            "EVOLUTION_KERNEL carries %d item(s) only by reference (%s) and writes %d here — the integral is not "
+            "materialized: a receiver that reads only this handoff inherits %d of %d, and the budget (%d) cannot "
+            "bind items that are not written. Integrate or retire down to the budget and write the survivors here; "
+            "the history stays in the predecessors." % (by_ref, " · ".join(ref_spans), len(items), len(items),
+                                                        len(items) + by_ref, EVOLUTION_KERNEL_MAX_ITEMS))
+    elif integral_on and not items:
+        warnings.append(
+            "EVOLUTION_KERNEL section is present but no K-item was parsed — an empty integral is the same failure "
+            "as an absent one, and a judge that parses nothing must say so instead of passing silently.")
+    if not items and not by_ref:
+        decision = "section present but no K-items parsed"
+    else:
+        decision = "%d/%d items anchored · budget %d/%d" % (len(items) - unanchored, len(items), len(items),
+                                                           EVOLUTION_KERNEL_MAX_ITEMS)
+        if by_ref:
+            decision += " · %d carried only by reference (%s)" % (by_ref, " · ".join(ref_spans))
+    if (by_ref or not items) and not integral_on:
+        decision += " (below integral floor %s — read only, not warned)" % EK_INTEGRAL_FLOOR
     return warnings, RuleRead(rule_id=rid, searched=searched, hits=hits, corpus=corpus, decision=decision)
 
 
@@ -1265,6 +1343,56 @@ def cross_ref_path_rule(lines: list[str], corpus: str) -> tuple[list[str], RuleR
     return warnings, RuleRead(
         rule_id="cross-ref-absolute-path",
         searched=[CROSSREF_DIR_RE.pattern, "fenced blocks excluded (roots carried by shell vars)"],
+        hits=hits, corpus=corpus, decision=decision,
+    )
+
+
+COLD_READ_FLOOR = "20261026"
+COLD_READ_RE = re.compile(r"^\s*COLD_READ\s*=\s*(.*)$")
+COLD_READ_AFTER_RE = re.compile(r"CRITICAL_AFTER\s*[=:]?\s*(\d+)")
+
+
+def cold_read_rule(lines: list[str], corpus: str, path=None) -> tuple[list[str], RuleRead]:
+    warnings: list[str] = []
+    hits: list[dict] = []
+    _d = _PA_DATE_RE.search(getattr(path, "name", "") or "")
+    in_scope = bool(_d) and _d.group(1) >= COLD_READ_FLOOR
+    rec = None
+    for idx, line in enumerate(lines):
+        m = COLD_READ_RE.match(line)
+        if m:
+            rec = (idx, m.group(1))
+            break
+    if rec is None:
+        hits.append({"line": 0, "col": 0, "match": "(absent)", "context": "no COLD_READ record"})
+        decision = "COLD_READ record absent"
+        if in_scope:
+            warnings.append(
+                "WARN emitted: no COLD_READ record —— 写件时未做冷读校验（SKILL.md 工作流第 12 步，题面 "
+                "assets/cold-read-probe.md）；接收方读不到的承重缺口没有被当窗发现。"
+            )
+    else:
+        idx, body = rec
+        a = COLD_READ_AFTER_RE.search(body)
+        if not a:
+            hits.append(_hit(idx, 0, body.strip()[:80], "COLD_READ without CRITICAL_AFTER"))
+            decision = "COLD_READ present but CRITICAL_AFTER unreadable"
+            if in_scope:
+                warnings.append("WARN emitted: COLD_READ record lacks CRITICAL_AFTER <n> —— 剩余承重缺口数不可读。")
+        else:
+            left = int(a.group(1))
+            hits.append(_hit(idx, a.start(1), "CRITICAL_AFTER %d" % left, "critical remaining"))
+            decision = "COLD_READ present · CRITICAL_AFTER=%d" % left
+            if left > 0 and in_scope:
+                warnings.append(
+                    f"WARN emitted: {left} load-bearing item(s) a cold reader could not resolve remain "
+                    "（COLD_READ CRITICAL_AFTER）—— 接收方开工前先看 REMAINING，必要时问用户。"
+                )
+    if not in_scope:
+        decision += " (outside floor %s or undated — read only, not warned)" % COLD_READ_FLOOR
+    return warnings, RuleRead(
+        rule_id="cold-read",
+        searched=[COLD_READ_RE.pattern, COLD_READ_AFTER_RE.pattern, "floor " + COLD_READ_FLOOR + " by filename date"],
         hits=hits, corpus=corpus, decision=decision,
     )
 
@@ -1510,6 +1638,36 @@ def progress_axis_rule(
               "recompute = known head token + absolute/locally-resolvable path",
               "LANDING_FLOOR=" + PROGRESS_AXIS_LANDING_FLOOR],
         hits, corpus, decision)
+
+
+def readout_block_rule(lines: list[str], corpus: str, path) -> tuple[list[str], RuleRead]:
+    rid = "readout-block"
+    warnings: list[str] = []
+    pasted = [ln.strip() for ln in lines if ln.strip().startswith("READOUT_SIZE ")]
+    if not pasted or path is None:
+        return warnings, RuleRead(rid, ["READOUT_SIZE line"], [], corpus, "SKIP: no pasted READOUT_SIZE line")
+    m = re.search(r"text_sha=([0-9a-f]{12})", pasted[-1])
+    try:
+        import importlib.util as _ilu
+        _rp = Path(__file__).resolve().parent / "handoff_readout.py"
+        if not _rp.is_file() and os.environ.get("SESSION_HANDOFF_READOUT"):
+            _rp = Path(os.environ["SESSION_HANDOFF_READOUT"])
+        _sp = _ilu.spec_from_file_location("handoff_readout", _rp)
+        _ro = _ilu.module_from_spec(_sp); _sp.loader.exec_module(_ro)
+        now = _ro.size(Path(path).resolve())
+    except Exception as exc:
+        return warnings, RuleRead(rid, ["readout.size"], [{"error": exc.__class__.__name__}], corpus,
+                                  "NOT_RUN(readout unavailable: %s)" % exc.__class__.__name__)
+    n = re.search(r"text_sha=([0-9a-f]{12})", now)
+    same = bool(m and n and m.group(1) == n.group(1))
+    hits = [{"pasted": m.group(1) if m else None, "recomputed": n.group(1) if n else None}]
+    if not same:
+        warnings.append(
+            "pasted READOUT_SIZE text_sha=%s but recomputing on the current file gives %s — the handoff was edited "
+            "after the readout ran (or pasted in a form the readout does not strip). Re-run the READOUT_RECOMPUTE "
+            "command's handoff_readout.py on the final file and paste again." % (hits[0]["pasted"], hits[0]["recomputed"]))
+    return warnings, RuleRead(rid, ["READOUT_SIZE text_sha vs handoff_readout.size(current file)"], hits, corpus,
+                              "WARN emitted: pasted text_sha differs" if warnings else "no warning: text_sha matches")
 
 
 def unlanded_directions_rule(
@@ -1850,6 +2008,10 @@ def lint(path: Path) -> dict[str, object]:
     _take(warnings, warn_by, progress_warnings, progress_read.rule_id)
     rule_reads.append(progress_read)
 
+    readout_warnings, readout_read = readout_block_rule(lines, corpus, path)
+    _take(warnings, warn_by, readout_warnings, readout_read.rule_id)
+    rule_reads.append(readout_read)
+
     recursion_warnings, recursion_read = method_recursion_rule(lines, corpus)
     _take(warnings, warn_by, recursion_warnings, recursion_read.rule_id)
     rule_reads.append(recursion_read)
@@ -1865,6 +2027,10 @@ def lint(path: Path) -> dict[str, object]:
     crossref_warnings, crossref_read = cross_ref_path_rule(lines, corpus)
     _take(warnings, warn_by, crossref_warnings, crossref_read.rule_id)
     rule_reads.append(crossref_read)
+
+    coldread_warnings, coldread_read = cold_read_rule(lines, corpus, path)
+    _take(warnings, warn_by, coldread_warnings, coldread_read.rule_id)
+    rule_reads.append(coldread_read)
 
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     status = "FAIL" if errors else ("WARN" if warnings else "CLEAN")

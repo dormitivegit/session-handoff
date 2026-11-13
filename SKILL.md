@@ -7,13 +7,10 @@ description: Write an evidence-grounded, capability-elevating session handoff (c
 
 <!--
 CONTRACT_VERSION = 2.3
-CARRIER_VERSION  = 2.4.29
+CARRIER_VERSION  = 2.6.1
 PROGRESS_AXIS_RULE=$SKILL_ROOT/scripts/lint_handoff.py:progress_axis_rule
 METHOD_INCREMENT_LANDING=$SKILL_ROOT/scripts/lint_handoff.py:method_increment_landing_rule
 RETIREMENT_OBSERVER=$SKILL_ROOT/scripts/lint_handoff.py:concretization_rate_rule
-CLAIM_LEDGER =
-  COMMITS = 30e9819
-  COMMITS = 7b3f31a
 -->
 
 A session handoff is a **capability-elevating transfer of understanding and work** — the next window should start higher than this one ended — not a minimal state packet, a chat summary, a fixed form, or an execution authorization.
@@ -30,6 +27,22 @@ Two different situations reach this skill, and they are not the same job:
 - **B — a persistent status decision.** A material state change has occurred and it is ambiguous whether the workstream's persistent status has to record it. Go to *Persistent status updates*. B does not require producing a full handoff.
 
 B frequently fires inside A: a session that ends with the persistent status still describing the previous node has already broken the continuity the handoff is trying to preserve. Handle B in its own terms, then return to A.
+
+## Workflow
+
+1. **Lock the workstream.** Identify the exact project, task line, current node, intended receiver, and reason for the session transition. Do not mix adjacent projects merely because they are recent or important.
+2. **Recover before writing.** Read the currently visible conversation and, when accessible, same-workstream history, uploads, handoffs, checkpoints, closeouts, receipts, tool results, and user rulings. Record only the scope actually checked. Never claim account-wide or exhaustive retrieval unless it truly occurred.
+3. **Identify the predecessor and the current delta.** If a predecessor handoff exists, verify its identity and workstream, compare current SOT / user authority / task state / technical route / key evidence, extract what actually changed, and decide which unchanged content only needs a pointer. If the predecessor cannot be uniquely identified, mark `UNKNOWN / CONFLICT`; never treat a similarly named document as lineage. With no predecessor, recover normally and do not manufacture a fake delta.
+4. **Reconcile authority and time.** Prefer current re-verification and first-hand evidence for facts; prefer the latest explicit user instruction for decisions. Do not turn a model recommendation into user adoption, an execution event into broader authorization, or a report into independent verification.
+5. **Reconstruct the story of the work.** Identify the original problem, important iterations, discoveries, failed approaches, decisions, current route, and why the present node exists. Preserve technical causality that prevents rediscovery.
+6. **Synthesize through the six dimensions.** First restore the complete useful picture; then remove repetition, raw-log noise, obsolete detail, and unrelated history. Do not begin with a word budget or fixed schema.
+7. **Write delta-first to prevent bloat.** By default lead with: the current node; what changed since the predecessor; the technical causality that changes the next action; current authority and authorization boundaries; current evidence gaps; and the unique pointers needed to receive the work. By default do **not** restate in full: an unchanged mission, the complete unchanged route, detailed history of closed nodes, settled role rules, long explanations of the same governing source, or a full evidence table that already exists uniquely in an accessible source. Re-expand unchanged content only when it is indispensable to the first work cycle, an authority judgement, or risk control. Do not impose a universal hard line/token cap across projects.
+8. **Write receiver-first.** Open with the Continuity Kernel and a compact immediate brief that tells the receiver where it is, what happened, what the current task is, what to read, and how to begin. State the single cleared first action and the receiver's current mode (see *Receiver activation and two authority axes*). Put metadata and risk detail later unless the user explicitly wants them first.
+9. **Provide an execution map, not an isolated ticket.** State one current task, the first 1–3 ordered actions, expected outputs, completion/stop conditions, and the next stage or branch that follows. Keep the receiver's cleared first action distinct from the next-gate authorization.
+10. **Ground facts and evidence.** Make important claims traceable. Give resolvable paths, identities, commands, receipts, or source descriptions when available. State unavailable or unverified items explicitly instead of inventing them.
+11. **Add conditional controls only when triggered.** For deletion, permissions, production, accounts, payment, secrets, security, or other irreversible work, add the high-risk continuity appendix from `references/handoff-method.md`.
+12. **Perform a receiver review with a cold reader.** You cannot see your own gaps: you hold the context the receiver will not. Before closing, give the finished handoff — path only, nothing else — to a fresh agent with no context, using the probe in `assets/cold-read-probe.md`. For every load-bearing item it cannot resolve, write the content (or an openable path) into the handoff; if the content exists only in the user's head, ask the user now. Do not resolve it by quoting the user again or by substituting your own interpretation. Record the result in a `COLD_READ=` line. Known blind spots: a cold reader cannot tell that your interpretation of the user is wrong, or that the task has drifted from the user's cross-window plan — check those against the user's own words yourself. Also use `assets/handoff-outline.md` as an adaptive checklist. The optional lint script checks only mechanical hazards, including whether the cold read was recorded; it is not a quality verdict.
+13. **Deliver the finished handoff.** When file output is supported, provide the file and SHA256, and mark version and status clearly. Do not execute the handoff's next task unless the user separately asks for execution.
 
 ## Six core dimensions
 
@@ -69,6 +82,7 @@ Therefore:
 - current node, cleared first action, done/stop conditions, authority boundaries, and required inputs must be present **in** the handoff;
 - deeper proof may point to a uniquely accessible file, path, hash, receipt, closeout, or SOT;
 - a pointer must be enough to resolve identity, purpose, and verification state;
+- the handoff must be usable without the producer Skill, hidden memory, or private reasoning;
 - never copy the whole history "to be self-contained" and exhaust the receiver's attention;
 - never omit facts or boundaries needed to start the first work cycle on the grounds that "evidence can be read on demand".
 
@@ -82,7 +96,7 @@ A precise state translation still fails if the receiver stalls (the classic "rec
    - *Next-gate authorization* — whether the next mutation or stage is authorized (`AUTHORIZED` | `NOT_AUTHORIZED` | `USER_DECISION_REQUIRED`).
    A not-yet-authorized next gate must never freeze the receiver when a cleared first action exists. Collapsing both into a single "HOLD" is the classic receiver-freeze failure.
    These two axes state what the receiver may do right now. They complement — and never replace — the authority record above: which user matters are adjudicated, authorized, not authorized, or rejected. The axes answer "what may I do"; the record answers "what has been decided, and what was rejected".
-3. **Ship the activation with the handoff.** For a fresh receiver, or one on a different model or host, include the copyable opening from `assets/handoff-outline.md` that puts it in receiver mode. A document delivered with no activating instruction defaults to passive acknowledgement.
+3. **Ship the activation with the handoff.** For a fresh receiver, or one on a different model or host, include the copyable opening from `assets/handoff-outline.md` that puts it in receiver mode. A document delivered with no activating instruction defaults to passive acknowledgement. The opening points to the handoff's single `CLEARED_FIRST_ACTION`; it never carries a second copy of the plan (outline §12, *One plan, one place*).
 4. **Carry the method-use instruction on the handoff, not in this file.** The receiver reads the
    handoff; it does not necessarily read this skill. So the opening must itself say, in one line:
    *before a relevant action, pick one method from the increment (or from a cross-workstream knowledge
@@ -90,12 +104,7 @@ A precise state translation still fails if the receiver stalls (the classic "rec
    is a correct outcome; after acting, record which method, which opportunity, which action, what
    result, and the cost comparison if there is one; if no opportunity arose, write 待复用.*
    Short prose is fine. No new field, no ledger, no database.
-   ⚠️ 这是 2.4.11 的短闭环缺的那一半：生成端写了触发点与记法，**接收端没有取用出口** ——
-   于是「本窗修正」到不了「下窗动作不同」。修的是出口，不是又加一套机制。
-   MEASURES: 该指令在不在开场白里（机械可判）。DOES NOT MEASURE: 接收方有没有真的照做、
-   照做了有没有收益 —— 那要看下一窗的回执正文，本 skill 不观测它，也不得由本条推出。
-
-4. **Carry the receipt duty in the activation.** The receiving session reads the handoff, not this skill, so a duty recorded only here never crosses the session boundary. The opening must tell the receiver to write a separate Receiver Outcome Receipt when its first work cycle ends or stops, and must name the destination path. The opening must also ask the receiver to restate one or two load-bearing points of this handoff before it starts, and to record the outcome in the receipt's `OBSERVED_FAILURE_OR_GAIN`: a receiver that cannot restate them has found a defect in this document, not in itself.Without this line the receipt is never written and the contract's own evidence channel is silently dead.
+5. **Carry the receipt duty in the activation.** The receiving session reads the handoff, not this skill, so a duty recorded only here never crosses the session boundary. The opening must tell the receiver to write a separate Receiver Outcome Receipt when its first work cycle ends or stops, and must name the destination path. The opening must also ask the receiver to restate one or two load-bearing points of this handoff before it starts, and to record the outcome in the receipt's `OBSERVED_FAILURE_OR_GAIN`: a receiver that cannot restate them has found a defect in this document, not in itself. Without this line the receipt is never written and the contract's own evidence channel is silently dead.
 
 For a file-persisted workstream, the immediate brief may point to a persistent SOT or charter file for the global objective, milestones, and accumulated value, and note where this session's value should be appended. Point to it; do not copy it wholesale, and do not turn the handoff itself into a ledger.
 
@@ -176,6 +185,14 @@ Anchor syntax, the mechanical-enumeration requirement, the honesty record that m
 test has stopped discriminating — report progress on an axis that still does) are in
 `references/window-altitude-and-method-increment.md` §1.
 
+**Progress axis = script output, never self-report** (every handoff, not only altitude-scoped ones). After the
+handoff's last edit — after lint and the cold read of step 12 — run
+`python3 $SKILL_ROOT/scripts/handoff_readout.py --session <this window's transcript .jsonl> --handoff <this handoff's absolute path>`
+(`--session auto` works only where transcript roots are configured — `HANDOFF_TRANSCRIPT_ROOT` or a local default) and paste its
+output verbatim under one line `PROGRESS_AXIS=handoff_readout output (verbatim)`; do not write, trim, or annotate the
+axis by hand. A non-zero exit: paste its single error line instead. What each line measures, what it does not, and how
+lesson patterns are registered: `references/readout.md`.
+
 ## Method increment and cross-window self-evolution
 
 For a multi-window line, a handoff that transfers conclusions but not **method** forces the
@@ -192,9 +209,7 @@ METHOD_INCREMENT=
 ```
 
 **本窗内的短闭环 —— 这一节在关窗前就要用，不是关窗时才填。**
-上面三栏是**出口**：它把方法交给下一窗。但一个方法真正省下的第一笔成本发生在**本窗** ——
-你刚被证伪一次假设、刚被纠正一次方向，而本窗后面还会再遇到同类动作。出口不管那一段。
-缺了它的后果已实测：一条方法写进了前窗的方法栏，新任务换了个入口进来，那一栏从没被读过。
+上面三栏是**出口**，管下一窗；本窗被证伪 / 被纠正之后的同类动作要**当场**复用 —— 出口不管那一段（缺它的后果已实测：前窗方法栏从未被新入口读到；由来见 PROVENANCE.md「2.5.0」）。
 
 ```text
 触发点（三选一发生即记，不等关窗）
@@ -208,7 +223,7 @@ METHOD_INCREMENT=
   一次也没再用过的方法，其有效性在本窗是未观测，不是成立。
 ```
 
-**写这三栏时的七条规则（内联，因为这是它们被用到的那一刻）**
+**写这三栏时的八条规则（内联，因为这是它们被用到的那一刻）**
 
 ```text
 R1 A 不是规则堆 —— 只收**常设**裁定（管得住后面的窗），每条带使它可机械适用的判据。
@@ -227,27 +242,20 @@ R6 晋升到跨线知识库须**两个都要**：① 候选理由四选一（R-a
    且检索面会被工具静默收窄）。检索覆盖不足记 UNKNOWN，不记「无等价」。晋升由用户裁。
 R7 Delta-only：不重述继承来的未变条目，指向前任件即可。
    **逐窗单调增长的方法增量是症状，不是进展。**
+R8 「已修」分两档：修法落进会自己执行的东西（代码 / 判定点 / 测试）并观测到一次效果，才写已修；
+   只落在文字、流程步骤或提醒里的，写「已落文字，效果待首个机会」，并在后续件里**显式**带着
+   （REVALIDATE_NOW 或「你本来会错信什么」栏，附核验命令），直到首个相关机会观测到或证伪 ——
+   不随「同前代」引用带走。该机会上复发 ⇒ 在 SUPERSEDED_OR_CORRECTED 撤回原「已修」，对应核条目退出。
+   不可机械判，不设 WARN。
 ```
 
-📖 要**理由**（这七条各自的由来、被撤回过什么、真语料读数）或**要改本节条款本身**时，
-读 `references/window-altitude-and-method-increment.md` §2。**这是建议，不是 MUST** ——
-按本 skill 自己的规矩，不可机械判定者不得写成 MUST（见上方旁注的由来）。
+📖 要**理由**或要**改本节条款本身**时，读 `references/window-altitude-and-method-increment.md` §2（建议，非 MUST）。本节机械不可判，不设 WARN —— `CLEAN` 不代表这一节做到了。
 
-⚠️ 判据边界：本节**机械不可判**（「有没有在下一个相关动作里正确取用」需要读内容），
-故不为它设 WARN —— 按本体系「不可机械判定者不得写成 MUST」。它靠的是上面那条动作点指令，
-和回执里那一栏的正文质量。检查器不承诺覆盖它，`CLEAN` 不代表这一节做到了。
-
-Delta-only: do not restate inherited entries that did not change. The column rules, the
-carrier-state semantics (`NONE` / `MISSING` / `EXISTS` / `TEXT_REFERENCED`, a conservative
-summary of four independent facts — and why **none** of them answers "will the next window
-get this method even if it never opens this file"; `WIRED` was retired),
-and the section's own falsifiability criterion are in the same reference file, §2.
+Delta-only: do not restate inherited entries that did not change. The column rules, the carrier-state semantics (`NONE` / `MISSING` / `EXISTS` / `TEXT_REFERENCED`), and the section's own falsifiability criterion are in the same reference file, §2.
 
 ## Evolution kernel —— 跨窗的积分
 
-`METHOD_INCREMENT` 是**导数**：只写本窗新增，不重述（上文 Delta-only 仍成立）。只有导数的交接链是一串
-增量快照 —— 两窗之后，前面的承重内容就掉了。金字塔还要**积分**：一个逐代继承、逐代整合的底座。
-（由本 skill 的机制在交接件本体内跨窗实现，不另建库。）
+`METHOD_INCREMENT` 是**导数**（只写本窗新增）；本段是**积分**：逐代继承、逐代整合的底座，在交接件本体内跨窗实现，不另建库 —— 只有导数的链两窗后就丢承重内容。
 
 错误转成能力点**按类，不按例**：一条证伪读数只锁住已知实例；同类第 2 次出现时，核里记的应是类级机制
 （唯一定义 · 登记 × 形态 · 结构守卫 · 翻色对照），使下一个实例在出现那一刻就翻红。用户的纠偏进核时写**原则**，
@@ -266,6 +274,7 @@ EVOLUTION_KERNEL=
 1 带锚准入  每条须有机器可执行或可解析的锚。无锚的内容不进核：核会被此后每一代原样继承，
             一条错的进了核，就按代放大。机制路径须在盘上（悬空指针不算锚）。
 2 预算      条数上限见 lint 常量 EVOLUTION_KERNEL_MAX_ITEMS；满了只能先整合或退役，再加。
+            只写「Kx–Ky 同前代」的引用继承也计入条数（按区间内本件未写出的编号计）并报 WARN：没写出来的条目，只读本件的接收方拿不到。
 3 生效地板  文件名日期不早于 lint 常量 EVOLUTION_KERNEL_FLOOR 的交接件须有本段（存量件不追溯）；
             段一旦出现，不论日期都受 1、2 约束。
 4 继承可追溯（v2，未实装）前代每条须在本代「保留 / 整合进某条 / 已落成机制而退出」三选一。
@@ -276,33 +285,14 @@ EVOLUTION_KERNEL=
 再留在文本里就是重复）。判据实现：
 $SKILL_ROOT/scripts/lint_handoff.py:evolution_kernel_rule
 
-## Workflow
-
-1. **Lock the workstream.** Identify the exact project, task line, current node, intended receiver, and reason for the session transition. Do not mix adjacent projects merely because they are recent or important.
-2. **Recover before writing.** Read the currently visible conversation and, when accessible, same-workstream history, uploads, handoffs, checkpoints, closeouts, receipts, tool results, and user rulings. Record only the scope actually checked. Never claim account-wide or exhaustive retrieval unless it truly occurred.
-3. **Identify the predecessor and the current delta.** If a predecessor handoff exists, verify its identity and workstream, compare current SOT / user authority / task state / technical route / key evidence, extract what actually changed, and decide which unchanged content only needs a pointer. If the predecessor cannot be uniquely identified, mark `UNKNOWN / CONFLICT`; never treat a similarly named document as lineage. With no predecessor, recover normally and do not manufacture a fake delta.
-4. **Reconcile authority and time.** Prefer current re-verification and first-hand evidence for facts; prefer the latest explicit user instruction for decisions. Do not turn a model recommendation into user adoption, an execution event into broader authorization, or a report into independent verification.
-5. **Reconstruct the story of the work.** Identify the original problem, important iterations, discoveries, failed approaches, decisions, current route, and why the present node exists. Preserve technical causality that prevents rediscovery.
-6. **Synthesize through the six dimensions.** First restore the complete useful picture; then remove repetition, raw-log noise, obsolete detail, and unrelated history. Do not begin with a word budget or fixed schema.
-7. **Write delta-first to prevent bloat.** By default lead with: the current node; what changed since the predecessor; the technical causality that changes the next action; current authority and authorization boundaries; current evidence gaps; and the unique pointers needed to receive the work. By default do **not** restate in full: an unchanged mission, the complete unchanged route, detailed history of closed nodes, settled role rules, long explanations of the same governing source, or a full evidence table that already exists uniquely in an accessible source. Re-expand unchanged content only when it is indispensable to the first work cycle, an authority judgement, or risk control. Do not impose a universal hard line/token cap across projects.
-8. **Write receiver-first.** Open with the Continuity Kernel and a compact immediate brief that tells the receiver where it is, what happened, what the current task is, what to read, and how to begin. State the single cleared first action and the receiver's current mode (see *Receiver activation and two authority axes*). Put metadata and risk detail later unless the user explicitly wants them first.
-9. **Provide an execution map, not an isolated ticket.** State one current task, the first 1–3 ordered actions, expected outputs, completion/stop conditions, and the next stage or branch that follows. Keep the receiver's cleared first action distinct from the next-gate authorization.
-10. **Ground facts and evidence.** Make important claims traceable. Give resolvable paths, identities, commands, receipts, or source descriptions when available. State unavailable or unverified items explicitly instead of inventing them.
-11. **Add conditional controls only when triggered.** For deletion, permissions, production, accounts, payment, secrets, security, or other irreversible work, add the high-risk continuity appendix from `references/handoff-method.md`.
-12. **Perform a receiver review.** Use `assets/handoff-outline.md` as an adaptive checklist and ask whether a new agent can understand, continue, and develop the work. The optional lint script checks only mechanical hazards; it is not a quality verdict.
-13. **Deliver the finished handoff.** When file output is supported, provide the file and SHA256, and mark version and status clearly. Do not execute the handoff's next task unless the user separately asks for execution.
-
 ## Writing principles
 
 - “Complete” means enough to preserve understanding, technical causality, current state, task continuity, and future direction. It does not mean copying the full transcript.
 - “Concise” means removing duplication and irrelevant detail. It does not mean deleting context that would force rediscovery.
 - Use natural, task-specific structure. Omit irrelevant sections; never fill a template with “none” merely for compliance.
-- Prefer a clear current task plus ordered immediate steps over “exactly one isolated action.”
 - Preserve the user's terminology, priorities, constraints, and own-voice decisions.
 - Separate the hot receiver brief from deeper evidence and background so both fast entry and full inheritance are possible.
 - Adapt the opening and expected output to the receiving role (for example a planner, reviewer, executor, or research agent) while preserving the same factual base.
-- A handoff must be self-contained enough to use without the producer Skill, hidden memory, or private reasoning; `self-contained` means operationally startable, with deeper evidence loaded on demand through unique resolvable pointers.
-- With a predecessor, default to delta-first: write the changes, then reference unchanged anchors. Without one, do not invent lineage.
 - Compression must never remove the current node, load-bearing causality, user authority, evidence gaps, or materials required for the first work cycle.
 - Do not treat word count, section count, mechanical lint passage, or formal symmetry as proof of quality.
 
@@ -371,8 +361,7 @@ OBSERVED_FAILURE_OR_GAIN=
 - `UNNECESSARY_REVALIDATION=YES` means re-verifying stable facts with no trigger — not verification required by new evidence, live-state expiry, or SOT conflict.
 - A receipt must never retroactively edit the handoff, approve a mutation, or override user authority.
 - While v2.3 is a candidate, preserve receipts where possible. A missing receipt is an evidence gap for version evaluation; it does not by itself fail an individual handoff.
-
-Receipts are an input, not an archive. When an iteration window on this skill opens, read the whole standing set of receipts in one pass and admit a finding as a change candidate only if it recurs independently at least twice, or is a single critical failure. Do not create a register for this: the receipts and the workstream's existing status surface are the record. If three consecutive iteration windows yield no actionable finding, reassess whether the receipt itself is worth producing.
+- Iterating on this skill: read the standing receipts as one set first (rule: VERSION_LEDGER.md, `ITERATION_WINDOW_INPUT`).
 
 **Delivery.** A receipt that nobody is instructed to write does not get written. The duty must be stated in the handoff's copyable opening, with a concrete destination — see item 4 under *Receiver activation and two authority axes*. Default destination for a file-persisted workstream: a `receipts/` directory beside that workstream's SOT, one file per receipt, named for the handoff it evaluates. The producer names the actual path; do not leave it implicit.
 
@@ -466,14 +455,10 @@ model name. The design assumes the receiver has a filesystem: on a host without 
 pointer-style inheritance fails silently (a pointer simply does not resolve), so inline the
 load-bearing content there.
 
-```
-
 Because the host calls `lint()` rather than importing individual rules, any mechanical rule
 added later is **executed** the moment it lands — no edit to the hook, no second copy of the
 criterion. Whether its output **reaches** anyone is a separate question, answered per tier by
-measurement on that host. Retirement of that arrangement: if the Stop channel is ever observed to fire
-on a file the producer had already fixed, or to stay silent on a file lint flags when run by
-hand, the single-call design is unsound and reverts to per-rule selection.
+measurement on that host. (Retirement condition of this arrangement: VERSION_LEDGER.md.)
 
 ## Exclusions
 

@@ -41,10 +41,18 @@ def hermetic_env(home: Path, extra: "dict | None" = None) -> dict:
     env.update(extra or {})
     return env
 
-CARRIER_VERSION = "2.4.29"
+CARRIER_VERSION = "2.6.1"
 FIXTURES = TESTS_DIR / "fixtures"
 
 EXPECTATIONS: dict[str, dict[str, object]] = {
+    "readout-block-edited-20261113-warn.md": {
+        "status": "WARN",
+        "note": "2.6.1: v2.3 baseline plus a pasted READOUT_SIZE whose text_sha does not match the file — readout_block_rule must warn.",
+    },
+    "cold-read-missing-20261026-warn.md": {
+        "status": "WARN",
+        "note": "2.4.31: the v2.3 baseline renamed past COLD_READ_FLOOR with no COLD_READ record — the cold-read judge must warn.",
+    },
     "v2.3-good.md": {
         "status": "CLEAN",
         "note": "v2.3 contract baseline: continuity kernel, predecessor delta, revalidation boundary.",
@@ -237,7 +245,7 @@ def anchor_problem(target: str, ident: "str | None") -> "str | None":
 
 def self_anchor_check() -> tuple[bool, list[str]]:
     problems: list[str] = []
-    for rel in ("SKILL.md", "assets/handoff-outline.md", "references/handoff-method.md",
+    for rel in ("SKILL.md", "VERSION_LEDGER.md", "assets/handoff-outline.md", "references/handoff-method.md",
                 "references/window-altitude-and-method-increment.md"):
         f = SKILL_DIR / rel
         if not f.is_file():
@@ -394,7 +402,7 @@ def face_engine(computed: dict) -> tuple[bool, list[str]]:
 def _rule_face_readings(source, probes, tmp, tag):
     lint_copy = tmp / ("lint_rf_%s.py" % tag)
     lint_copy.write_text(source, encoding="utf-8")
-    env = hermetic_env(tmp)
+    env = hermetic_env(tmp, {"SESSION_HANDOFF_READOUT": str(READOUT)})
     out = []
     for f in probes:
         proc = subprocess.run([sys.executable, "-B", str(lint_copy), str(f), "--json"],
@@ -701,6 +709,158 @@ DISCRIMINATION_MATRIX = [
         "read": "kernel_unanchored",
         "rule": "evolution_kernel_rule",
     },
+    {
+        "id": "EK2.fenced_items_parsed",
+        "fix": "标题形态的进化核按标题层级封口，围栏内的 K 条目照常解析与判锚",
+        "expect": 1,
+        "mutate": [("    fenced: set[int] = set()\n    if head:",
+                    "    fenced: set[int] = set()\n    if False:  # MUTANT")],
+        "probe": "kernel_heading_fenced_20261018",
+        "read": "kernel_unanchored",
+        "rule": "evolution_kernel_rule",
+    },
+    {
+        "id": "EK3.by_reference_warns",
+        "fix": "进化核只以引用继承（Kx–Ky 同前代）而不写出条目时报 WARN，并给出继承数",
+        "expect": True,
+        "mutate": [("    if integral_on and by_ref:", "    if False and by_ref:  # MUTANT")],
+        "probe": "kernel_by_reference_20261018",
+        "read": "kernel_by_reference_warn",
+        "rule": "evolution_kernel_rule",
+    },
+    {
+        "id": "EK4.integral_floor",
+        "fix": "引用继承 / 零条目两条新 WARN 不追溯存量件（文件名日期早于 EK_INTEGRAL_FLOOR 只出读数）",
+        "expect": False,
+        "mutate": [("    integral_on = (not _d) or _d.group(1) >= EK_INTEGRAL_FLOOR",
+                    "    integral_on = True  # MUTANT")],
+        "probe": "kernel_by_reference_20261017",
+        "read": "kernel_by_reference_warn",
+        "rule": "evolution_kernel_rule",
+    },
+    {
+        "id": "EK8.midline_range_not_carry",
+        "fix": "引用继承只认行首 K 区间；「整合 K3–K5 进 K10，保留其判据」这类行中区间不报",
+        "expect": False,
+        "mutate": [('EK_RANGE_LINE_RE = re.compile(r"^\\s*(?:[-*+]\\s*)?K(\\d+)',
+                    'EK_RANGE_LINE_RE = re.compile(r"^.*?(?:[-*+]\\s*)?K(\\d+)')],
+        "probe": "kernel_midline_range_20261018",
+        "read": "kernel_by_reference_warn",
+        "rule": "evolution_kernel_rule",
+    },
+    {
+        "id": "EK9.word_range_separator",
+        "fix": "区间符号含「到 / 至」，文字写法的引用继承照样计入并报 WARN",
+        "expect": True,
+        "mutate": [("(?:[–—~～-]|到|至|", "(?:[–—~～-]|")],
+        "probe": "kernel_word_range_20261018",
+        "read": "kernel_by_reference_warn",
+        "rule": "evolution_kernel_rule",
+    },
+    {
+        "id": "EK10.undated_in_scope",
+        "fix": "文件名无日期的交接件，引用继承 / 零条目照常报 WARN；地板只豁免带日期的存量件",
+        "expect": True,
+        "mutate": [("    integral_on = (not _d) or _d.group(1) >= EK_INTEGRAL_FLOOR",
+                    "    integral_on = bool(_d) and _d.group(1) >= EK_INTEGRAL_FLOOR  # MUTANT")],
+        "probe": "kernel_by_reference_nodate",
+        "read": "kernel_by_reference_warn",
+        "rule": "evolution_kernel_rule",
+    },
+    {
+        "id": "EK11.materialized_not_counted",
+        "fix": "引用继承数只计区间内本件未写出的编号；区间内条目全部写出时不报",
+        "expect": False,
+        "mutate": [("            by_ref += len(set(range(lo, hi + 1)) - written)",
+                    "            by_ref += hi - lo + 1  # MUTANT")],
+        "probe": "kernel_range_materialized_20261018",
+        "read": "kernel_by_reference_warn",
+        "rule": "evolution_kernel_rule",
+    },
+    {
+        "id": "EK7.fenced_stock_read_only",
+        "fix": "标题形态围栏内的条目在落地日之前的件上不报无锚 / 超预算（读数照出）",
+        "expect": 0,
+        "mutate": [("    pre_floor = {j for _l, j, _b in items if j in fenced} if not integral_on else set()",
+                    "    pre_floor = set()  # MUTANT")],
+        "probe": "kernel_heading_fenced_20261001",
+        "read": "kernel_unanchored",
+        "rule": "evolution_kernel_rule",
+    },
+    {
+        "id": "EK5.empty_section_warns",
+        "fix": "进化核段在场但解析 0 条时报 WARN（落地日之后的件）",
+        "expect": True,
+        "mutate": [("    elif integral_on and not items:", "    elif False:  # MUTANT")],
+        "probe": "kernel_empty_20261018",
+        "read": "kernel_empty_warn",
+        "rule": "evolution_kernel_rule",
+    },
+    {
+        "id": "EK6.unbounded_kernel_id",
+        "fix": "K 编号不设位宽，随代增长的编号不撑破判官",
+        "expect": 1,
+        "mutate": [('EK_ITEM_RE = re.compile(r"^\\s*(K\\d+)[\\s:：.]")',
+                    'EK_ITEM_RE = re.compile(r"^\\s*(K\\d{1,3})[\\s:：.]")  # MUTANT')],
+        "probe": "kernel_four_digit",
+        "read": "kernel_unanchored",
+        "rule": "evolution_kernel_rule",
+    },
+    {
+        "id": "ML3.unbounded_entry_id",
+        "fix": "METHOD_INCREMENT 条目编号不设位宽，三位及以上的号照常判出口",
+        "expect": 1,
+        "mutate": [('?([A-Z]\\d+)[\\s\\u3000]")', '?([A-Z]\\d{1,2})[\\s\\u3000]")  # MUTANT')],
+        "probe": "landing_three_digit_20261018",
+        "read": "landing_missing",
+        "rule": "method_increment_landing_rule",
+    },
+    {
+        "id": "CRD1.missing_record_warns",
+        "fix": "地板之后的交接件缺 COLD_READ 记录时报 WARN（写件时未做冷读校验）",
+        "expect": True,
+        "mutate": [("        if in_scope:\n            warnings.append(\n                \"WARN emitted: no COLD_READ record",
+                    "        if False:\n            warnings.append(\n                \"WARN emitted: no COLD_READ record")],
+        "probe": "cold_read_missing_20261026",
+        "read": "cold_read_missing_warn",
+        "rule": "cold_read_rule",
+    },
+    {
+        "id": "CRD2.remaining_warns",
+        "fix": "COLD_READ 记录 CRITICAL_AFTER > 0 时报 WARN（承重缺口留给下一窗）",
+        "expect": True,
+        "mutate": [("            if left > 0 and in_scope:", "            if False and in_scope:  # MUTANT")],
+        "probe": "cold_read_remaining_20261026",
+        "read": "cold_read_remaining_warn",
+        "rule": "cold_read_rule",
+    },
+    {
+        "id": "CRD3.floor_read_only",
+        "fix": "文件名日期早于 COLD_READ_FLOOR 或无日期的件缺 COLD_READ 只出读数、不报",
+        "expect": False,
+        "mutate": [("    in_scope = bool(_d) and _d.group(1) >= COLD_READ_FLOOR", "    in_scope = True  # MUTANT")],
+        "probe": "cold_read_missing_20261025",
+        "read": "cold_read_missing_warn",
+        "rule": "cold_read_rule",
+    },
+    {
+        "id": "ML4.ledger_dangling_checked",
+        "fix": "SESSION_HANDOFF_ENTRIES 给出台账时，入库声明的 G.N 不在台账标题里 ⇒ 记悬空",
+        "expect": 1,
+        "mutate": [("            if known_ids is not None:", "            if False:  # MUTANT")],
+        "probe": "landing_ledger_dangling_20261112",
+        "read": "landing_dangling",
+        "rule": "method_increment_landing_rule",
+    },
+    {
+        "id": "ML5.unopened_not_run",
+        "fix": "台账未能打开时不得报 RUN（判官报的状态不得强于实际执行）",
+        "expect": "NOT_RUN(unreadable)",
+        "mutate": [('            dangling_face = "NOT_RUN(unreadable)"', '            dangling_face = "RUN"  # MUTANT')],
+        "probe": "landing_ledger_absent_20261112",
+        "read": "landing_face",
+        "rule": "method_increment_landing_rule",
+    },
 ]
 
 MATRIX_REGISTERED_IDS = frozenset({
@@ -715,6 +875,12 @@ MATRIX_REGISTERED_IDS = frozenset({
     "RA1.ruling_source_anchor",
     "SAT1.prose_is_not_field",
     "EK1.kernel_item_needs_anchor",
+    "EK2.fenced_items_parsed", "EK3.by_reference_warns", "EK4.integral_floor",
+    "EK5.empty_section_warns", "EK6.unbounded_kernel_id", "ML3.unbounded_entry_id", "EK7.fenced_stock_read_only",
+    "EK8.midline_range_not_carry", "EK9.word_range_separator", "EK10.undated_in_scope",
+    "EK11.materialized_not_counted",
+    "CRD1.missing_record_warns", "CRD2.remaining_warns", "CRD3.floor_read_only",
+    "ML4.ledger_dangling_checked", "ML5.unopened_not_run",
 })
 
 
@@ -755,6 +921,33 @@ def _probe_inputs(kind, tmp):
     if kind == "progress_axis_20260921":
         return ("dual-channel\nL_CARRY=L3\nNEXT_FLOOR=L3\n## METHOD_INCREMENT\n"
                 "新增 B1：本窗新方法 ⇒ NOT_LANDED=探针夹具\n" + duty, {}, {})
+    if kind in ("kernel_heading_fenced_20261018", "kernel_heading_fenced_20261001"):
+        return ("## EVOLUTION_KERNEL\n\n```text\nK1 有锚：复算 ls /tmp\nK2 无锚的一条\n```\n\n## 下一节\n正文\n"
+                + duty, {}, {})
+    if kind in ("kernel_by_reference_20261018", "kernel_by_reference_20261017"):
+        return ("## EVOLUTION_KERNEL\n\nK1–K85 同前代。本窗新增：\n\n```text\nK86 有锚：复算 ls /tmp\n```\n"
+                + duty, {}, {})
+    if kind == "kernel_midline_range_20261018":
+        return ("## EVOLUTION_KERNEL\n\n```text\nK10 合并后的一条：复算 ls /tmp\n```\n整合 K3–K5 进 K10，保留其判据。\n"
+                + duty, {}, {})
+    if kind == "kernel_word_range_20261018":
+        return ("## EVOLUTION_KERNEL\n\nK1 到 K100 同前代。\n\n```text\nK101 有锚：复算 ls /tmp\n```\n" + duty, {}, {})
+    if kind == "kernel_range_materialized_20261018":
+        return ("## EVOLUTION_KERNEL\n\nK1–K2 同前代，整合后全部写出如下：\n\n```text\nK1 一条：复算 ls /tmp\nK2 一条：复算 ls /tmp\n```\n"
+                + duty, {}, {})
+    if kind == "kernel_by_reference_nodate":
+        return ("## EVOLUTION_KERNEL\n\nK1–K40 同前代。\n" + duty, {}, {})
+    if kind == "kernel_empty_20261018":
+        return ("## EVOLUTION_KERNEL\n\n本窗无条目。\n\n## 下一节\n正文\n" + duty, {}, {})
+    if kind in ("cold_read_missing_20261026", "cold_read_missing_20261025"):
+        return ("## 交接件\n\n首动作：跑一次 ls /tmp。\n" + duty, {}, {})
+    if kind == "cold_read_remaining_20261026":
+        return ("## 交接件\n\n```text\nCOLD_READ=READER 探针 · CRITICAL_BEFORE 2 · CRITICAL_AFTER 1 · REMAINING 一条用户原话指代未解析\n```\n"
+                + duty, {}, {})
+    if kind == "kernel_four_digit":
+        return ("EVOLUTION_KERNEL=\n  K1000 无锚的一条\n" + duty, {}, {})
+    if kind == "landing_three_digit_20261018":
+        return ("## METHOD_INCREMENT\n新增 B144 本窗方法，两种出口都没写\n" + duty, {}, {})
     if kind == "kernel_unanchored":
         return ("EVOLUTION_KERNEL=\n  K1 有锚：复算 ls /tmp\n  K2 无锚的一条\n" + duty, {}, {})
     if kind == "saturation_prose_only":
@@ -781,6 +974,11 @@ def _probe_inputs(kind, tmp):
                 "还有 ~/SYSTEM_ROOT/30_LEDGERS/LEDGER.md。\n"
                 "```bash\nS=/opt/system\npython3 $S/30_LEDGERS/x.py\n```\n"
                 "## METHOD_INCREMENT\n新增 B1：本窗新方法 ⇒ NOT_LANDED=探针夹具\n" + duty, {}, {})
+    if kind in ("landing_ledger_dangling_20261112", "landing_ledger_absent_20261112"):
+        ledger = tmp / "entries.md"
+        target = ledger if kind == "landing_ledger_dangling_20261112" else tmp / "absent.md"
+        return ("## METHOD_INCREMENT\n新增 B1 reusable action ⇒ G.999999\n" + duty,
+                {str(ledger): "### G.1000 Existing entry\n"}, {"SESSION_HANDOFF_ENTRIES": str(target)})
     if kind == "by_reference":
         return ("PREDECESSOR_HANDOFF_ID=H_PREV\n"
                 "UNCHANGED_CRITICAL_ANCHORS_CARRIED_BY_REFERENCE=H_PREV#METHOD_INCREMENT，B1/B2 已继承\n"
@@ -806,6 +1004,14 @@ def _extract(result, what):
         return {k: hits[0][k] for k in ("新增", "继承", "退役", "entries")}
     if what == "decision":
         return str(reads["method-recursion"]["decision"])[:110]
+    if what == "kernel_by_reference_warn":
+        return any("only by reference" in str(w) for w in result.get("warnings", []))
+    if what == "cold_read_missing_warn":
+        return any("no COLD_READ record" in str(w) for w in result.get("warnings", []))
+    if what == "cold_read_remaining_warn":
+        return any("could not resolve remain" in str(w) for w in result.get("warnings", []))
+    if what == "kernel_empty_warn":
+        return any("no K-item was parsed" in str(w) for w in result.get("warnings", []))
     if what == "kernel_unanchored":
         return sum(1 for h in reads["evolution-kernel"]["hits"] if h.get("context") == "no anchor")
     if what == "saturation_decision":
@@ -817,6 +1023,14 @@ def _extract(result, what):
     if what == "ruling_unanchored":
         return sum(1 for h in reads["method-increment-landing"]["hits"]
                    if h.get("context") == "no source anchor")
+    if what == "landing_dangling":
+        return sum(1 for h in reads["method-increment-landing"]["hits"]
+                   if h.get("context") == "dangling ledger id")
+    if what == "landing_face":
+        m = re.search(r"dangling-id check=([^;\s]+)", str(reads["method-increment-landing"]["decision"]))
+        if not m:
+            raise RuntimeError("landing decision carries no dangling-id state")
+        return m.group(1)
     if what == "landing_missing":
         return sum(1 for h in reads["method-increment-landing"]["hits"]
                    if h.get("context") == "no exit declaration")
@@ -1019,6 +1233,209 @@ def hermetic_input_check() -> tuple[bool, list[str]]:
     return (not hits), [head] + [f"  🔴 {h}" for h in hits]
 
 
+def text_mode_check():
+    bad = []
+    files = sorted(FIXTURES.glob("*.md"))
+    with tempfile.TemporaryDirectory() as td:
+        env = hermetic_env(Path(td))
+        for f in files:
+            proc = subprocess.run([sys.executable, "-B", str(LINT), str(f)],
+                                  capture_output=True, text=True, env=env, cwd=td)
+            if proc.returncode not in (0, 1) or "Traceback" in proc.stderr:
+                last = (proc.stderr.strip().splitlines() or ["(no stderr)"])[-1][:120]
+                bad.append(f"{f.name}: rc={proc.returncode} {last}")
+    head = f"text-mode face: {len(files)} fixture(s) linted without --json · {len(bad)} crash(es) (must be 0)"
+    return (not bad and bool(files)), [head] + [f"  🔴 {b}" for b in bad]
+
+
+LEDGER_SIX_CELLS = {
+    ("off_empty", "1000"): ("NOT_RUN", 0, 0),
+    ("off_empty", "999999"): ("NOT_RUN", 0, 0),
+    ("real_registry", "1000"): ("RUN", 0, 0),
+    ("real_registry", "999999"): ("RUN", 1, 1),
+    ("nonexistent_registry", "1000"): ("NOT_RUN(unreadable)", 0, 1),
+    ("nonexistent_registry", "999999"): ("NOT_RUN(unreadable)", 0, 1),
+}
+
+
+def ledger_six_cell_check():
+    bad, lines = [], []
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        ledger = tmp / "entries.md"
+        ledger.write_text("### G.1000 Existing test entry\n", encoding="utf-8")
+        for (envcase, ident), exp in LEDGER_SIX_CELLS.items():
+            f = tmp / ("HANDOFF_%s_%s_20261112.md" % (envcase, ident))
+            f.write_text("## METHOD_INCREMENT\n新增 B1 reusable action ⇒ G.%s\n" % ident, encoding="utf-8")
+            extra = {"SESSION_HANDOFF_ENTRIES": ""} if envcase == "off_empty" else {
+                "SESSION_HANDOFF_ENTRIES": str(ledger if envcase == "real_registry" else tmp / "absent.md")}
+            proc = subprocess.run([sys.executable, "-B", str(LINT), str(f), "--json"], capture_output=True,
+                                  text=True, env=hermetic_env(tmp, extra), cwd=td)
+            if proc.returncode not in (0, 1):
+                bad.append("%s×G.%s: lint rc=%d" % (envcase, ident, proc.returncode))
+                continue
+            d = json.loads(proc.stdout)
+            r = {x["rule_id"]: x for x in d["rule_reads"]}["method-increment-landing"]
+            m = re.search(r"dangling-id check=([^;\s]+)", str(r["decision"]))
+            got = (m.group(1) if m else None,
+                   sum(1 for h in r["hits"] if h.get("context") == "dangling ledger id"),
+                   sum(1 for by in d["attribution"]["warnings"] if by == "method-increment-landing"))
+            ok = got == exp
+            lines.append("  %s %-21s G.%-7s got=%r expect=%r" % ("PASS" if ok else "FAIL", envcase, ident, got, exp))
+            if not ok:
+                bad.append("%s×G.%s" % (envcase, ident))
+        import importlib.util as _ilu
+        _sp = _ilu.spec_from_file_location("lint_for_default", LINT); _lm = _ilu.module_from_spec(_sp)
+        sys.modules["lint_for_default"] = _lm; _sp.loader.exec_module(_lm)
+        dflt = _lm.MI_LANDING_ENTRIES_DEFAULT
+        want = "RUN" if dflt and Path(dflt).is_file() and _lm.MI_LEDGER_ID_RE.search(Path(dflt).read_text(encoding="utf-8", errors="replace")) else "NOT_RUN"
+        f = tmp / "HANDOFF_absent_default_20261113.md"
+        f.write_text("## METHOD_INCREMENT\n新增 B1 reusable action ⇒ NOT_LANDED=test\n", encoding="utf-8")
+        proc = subprocess.run([sys.executable, "-B", str(LINT), str(f), "--json"], capture_output=True, text=True,
+                              env=hermetic_env(tmp), cwd=td)
+        r = {x["rule_id"]: x for x in json.loads(proc.stdout)["rule_reads"]}["method-increment-landing"]
+        m = re.search(r"dangling-id check=([^;\s]+)", str(r["decision"]))
+        got = m.group(1) if m else None
+        lines.append("  %s %-21s default=%s got=%r expect=%r" % ("PASS" if got == want else "FAIL", "absent", "set" if dflt else "empty", got, want))
+        if got != want:
+            bad.append("absent×default")
+    head = "ledger six-cell face (negative control, six cells + absent-default cell): %d/%d cells met expectation" % (
+        len(LEDGER_SIX_CELLS) + 1 - len(bad), len(LEDGER_SIX_CELLS) + 1)
+    return (not bad), [head] + lines
+
+
+READOUT = SKILL_DIR / "scripts" / "handoff_readout.py"
+
+
+def _readout_session(tmp: Path, handoff: Path) -> Path:
+    def a(i, ts, name, inp, mid):
+        return {"type": "assistant", "isSidechain": False, "timestamp": ts,
+                "message": {"id": mid, "usage": {"output_tokens": 100},
+                            "content": [{"type": "tool_use", "id": "t%d" % i, "name": name, "input": inp}]}}
+    recv = tmp / "HANDOFF_PREV_20261111_RUN11.md"
+    recv.write_text("prev\n", encoding="utf-8")
+    def env(ts, wd, frm=None):
+        r = {"type": "attachment", "isSidechain": False, "timestamp": ts,
+             "attachment": {"type": "environment", "snapshot": {"workingDirectory": wd}}}
+        if frm is not None:
+            r["attachment"]["changes"] = [{"field": "workingDirectory", "from": frm}]
+        return r
+    rows = [
+        env("2026-11-11T23:59:59Z", "/home/probe"),
+        {"type": "user", "isSidechain": False, "timestamp": "2026-11-12T00:00:00Z",
+         "message": {"content": "你接手交接。唯一来源：" + str(recv)}},
+        a(1, "2026-11-12T00:00:01Z", "Bash", {"command": "shasum -a 256 " + str(recv)}, "m1"),
+        a(2, "2026-11-12T00:00:02Z", "Bash", {"command": "cat " + str(recv)}, "m2"),
+        env("2026-11-12T00:00:02.5Z", "/home/probe/proj", "/home/probe"),
+        env("2026-11-12T00:00:02.6Z", "/home/probe", "/home/probe/proj"),
+        a(3, "2026-11-12T00:00:03Z", "Bash", {"command": "mkdir -p $TMPDIR/x && rm -rf $TMPDIR/x"}, "m3"),
+        a(4, "2026-11-12T00:00:04Z", "Bash", {"command": "grep -c foo " + str(recv)}, "m4"),
+        {"type": "user", "isSidechain": False, "timestamp": "2026-11-12T00:00:05Z",
+         "message": {"content": "写交接件，切窗"}},
+        a(5, "2026-11-12T00:00:06Z", "Skill", {"skill": "session-handoff"}, "m5"),
+        a(6, "2026-11-12T00:00:07Z", "Write", {"file_path": str(handoff), "content": "x"}, "m6"),
+    ]
+    s = tmp / "00000000-0000-4000-8000-000000000000.jsonl"
+    s.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+    return s
+
+
+def readout_face_check():
+    import importlib.util, shutil
+    bad = []
+    spec = importlib.util.spec_from_file_location("readout_under_test", READOUT)
+    ro = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ro)
+    lp = ro.LP
+    v = ro.validity(lp)
+    if v:
+        bad.append("validity on shipped table: " + v)
+    for p in lp.PATTERNS:
+        pos = sum(1 for _c, e in p["canary"] if e); neg = sum(1 for _c, e in p["canary"] if not e)
+        if pos < 3 or neg < 3:
+            bad.append("%s canary pos=%d neg=%d (need >=3 each)" % (p["id"], pos, neg))
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        handoff = tmp / "HANDOFF_PROBE_20261112_RUN11.md"
+        handoff.write_text("L_CARRY=L3\nNEXT_FLOOR=L3\n## 正文\n内容\n", encoding="utf-8")
+        sess = _readout_session(tmp, handoff)
+        cmd = [sys.executable, "-B", str(READOUT), "--session", str(sess), "--handoff", str(handoff), "--prior", ","]
+        env = hermetic_env(tmp)
+        r1 = subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=td)
+        r2 = subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=td)
+        out = r1.stdout.splitlines()
+        if r1.returncode != 0:
+            bad.append("readout rc=%d %s" % (r1.returncode, r1.stderr.strip()[-120:]))
+        if r1.stdout != r2.stdout:
+            bad.append("rerun not byte-identical")
+        if not (1 <= len(out) <= 10):
+            bad.append("output lines=%d (need 1..10)" % len(out))
+        head = out[0] if out else ""
+        if not (head.startswith("READOUT_SNAPSHOT ") and all(k in head for k in (" path=", " n=", " sha256=", " AS_OF=", " tool="))):
+            bad.append("first line is not the I1 snapshot: " + head[:80])
+        body = "\n".join(out)
+        wants = ["touch=1@0 body=1@1", "switch=有", "READOUT_RECOMPUTE python3 "]
+        wants += (["命令带删除 1/4", "裸grep计数 1/1", "cwd外移 1/4", "READOUT_E3 E3b ", " 未测="] if lp.PATTERNS
+                  else ["READOUT_PATTERNS 无登记模式"])
+        for want in wants:
+            if want not in body:
+                bad.append("missing reading: " + want)
+        if "E3a" in body:
+            bad.append("E3a still in the block (2.6.1: removed, prereg §4 per-class only)")
+        size_before = next((x for x in out if x.startswith("READOUT_SIZE")), "")
+        h2 = tmp / "HANDOFF_PROBE_20261112_RUN12.md"
+        h2.write_text(handoff.read_text(encoding="utf-8") + "\n```text\nPROGRESS_AXIS=handoff_readout output (verbatim)\n"
+                      + r1.stdout + "```\n", encoding="utf-8")
+        h1 = tmp / "HANDOFF_PROBE_20261112_RUN13.md"
+        h1.write_text(handoff.read_text(encoding="utf-8"), encoding="utf-8")
+        s_f = [subprocess.run(cmd[:5] + ["--handoff", str(h)] + cmd[7:], capture_output=True, text=True, env=env, cwd=td).stdout
+               for h in (h1, h2)]
+        sz = [next((x.split(" text_sha=")[0] + " " + x.split(" text_sha=")[1] for x in o.splitlines() if x.startswith("READOUT_SIZE")), "")
+              for o in s_f]
+        if sz[0] != sz[1]:
+            bad.append("SIZE changed after a fenced paste: %r vs %r" % (sz[0][:60], sz[1][:60]))
+        h3 = tmp / "HANDOFF_PROBE_20261112_RUN14.md"
+        h3.write_text(handoff.read_text(encoding="utf-8") + "\nPROGRESS_AXIS=handoff_readout output (verbatim)\n```text\n"
+                      + r1.stdout + "```\n", encoding="utf-8")
+        s3 = subprocess.run(cmd[:5] + ["--handoff", str(h3)] + cmd[7:], capture_output=True, text=True, env=env, cwd=td).stdout
+        z3 = next((x.split(" text_sha=")[0] + " " + x.split(" text_sha=")[1] for x in s3.splitlines() if x.startswith("READOUT_SIZE")), "")
+        if z3 != sz[0]:
+            bad.append("SIZE changed when the fence sits between PROGRESS_AXIS= and the block: %r vs %r" % (z3[:60], sz[0][:60]))
+        handoff.write_text(handoff.read_text(encoding="utf-8") + "\nPROGRESS_AXIS=handoff_readout output (verbatim)\n"
+                           + r1.stdout + "\n", encoding="utf-8")
+        r3 = subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=td)
+        if next((x for x in r3.stdout.splitlines() if x.startswith("READOUT_SIZE")), None) != size_before:
+            bad.append("SIZE line changed after pasting the block into the handoff")
+        lr = subprocess.run([sys.executable, "-B", str(LINT), str(handoff), "--json"], capture_output=True, text=True,
+                            env=env, cwd=td)
+        dec = next((x["decision"] for x in json.loads(lr.stdout)["rule_reads"] if x["rule_id"] == "progress-axis"), "")
+        if not dec.startswith("no warning: saturated, PROGRESS_AXIS present with a resolvable recompute command"):
+            bad.append("pasted block does not satisfy progress_axis_rule: " + dec[:80])
+        rb = next((x["decision"] for x in json.loads(lr.stdout)["rule_reads"] if x["rule_id"] == "readout-block"), "")
+        if not rb.startswith("no warning: text_sha matches"):
+            bad.append("readout-block on an untouched paste: " + rb[:80])
+        edited = tmp / "HANDOFF_PROBE_20261112_RUN15.md"
+        edited.write_text(handoff.read_text(encoding="utf-8") + "\n事后补的一句\n", encoding="utf-8")
+        le = subprocess.run([sys.executable, "-B", str(LINT), str(edited), "--json"], capture_output=True, text=True, env=env, cwd=td)
+        rb2 = next((x["decision"] for x in json.loads(le.stdout)["rule_reads"] if x["rule_id"] == "readout-block"), "")
+        if not rb2.startswith("WARN emitted"):
+            bad.append("readout-block missed an edit after paste: " + rb2[:80])
+        mut = tmp / "mut"
+        if not lp.PATTERNS:
+            bad_note = "negative control skipped: no registered patterns in this install"
+            return (not bad), ["readout face (round-2 instrument I1–I5): %d problem(s) (must be 0) · %s" % (len(bad), bad_note)] \
+                + ["  🔴 " + b for b in bad]
+        shutil.copytree(SKILL_DIR / "scripts", mut, ignore=shutil.ignore_patterns("__pycache__", "*.bak*"))
+        src = (mut / "lesson_detectors.py").read_text(encoding="utf-8")
+        (mut / "lesson_detectors.py").write_text(src.replace('"rm", "rmdir", "unlink"', '"rmdir", "unlink"'), encoding="utf-8")
+        rm_ = subprocess.run([sys.executable, "-B", str(mut / "handoff_readout.py"), "--session", str(sess), "--prior", ","],
+                             capture_output=True, text=True, env=env, cwd=td)
+        if "未过效度门" not in rm_.stdout or "命令带删除" in rm_.stdout:
+            bad.append("tampered detector was not refused (negative control)")
+    head_line = "readout face (round-2 instrument I1–I5): %d problem(s) (must be 0)" % len(bad)
+    return (not bad), [head_line] + ["  🔴 " + b for b in bad]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--json", action="store_true")
@@ -1109,6 +1526,9 @@ def main() -> int:
     elev_ok, elev_lines = elevation_face_check(matrix_rows)
     grammar_ok, grammar_lines = path_grammar_check()
     herm_ok, herm_lines = hermetic_input_check()
+    text_ok, text_lines = text_mode_check()
+    six_ok, six_lines = ledger_six_cell_check()
+    ro_ok, ro_lines = readout_face_check()
     try:
         rule_lines, rule_detail = rule_face_check()
         face_ok, face_lines = face_engine({
@@ -1123,7 +1543,7 @@ def main() -> int:
     summary = {
         "contract_version": "2.3",
         "self_check": detail,
-        "all_pass": failures == 0 and reg_ok and matrix_ok and face_ok and elev_ok and grammar_ok and herm_ok,
+        "all_pass": failures == 0 and reg_ok and matrix_ok and face_ok and elev_ok and grammar_ok and herm_ok and text_ok and six_ok and ro_ok,
         "fixtures": results,
         "real_file_regression": {
             "assertion": REGRESSION_ASSERTION,
@@ -1152,6 +1572,21 @@ def main() -> int:
             "assertion": "no test input references a file that exists on the host; subprocess env is sealed",
             "all_pass": herm_ok,
             "lines": herm_lines,
+        },
+        "text_mode_face": {
+            "assertion": "every fixture lints in text mode (no --json) without a crash",
+            "all_pass": text_ok,
+            "lines": text_lines,
+        },
+        "ledger_six_cell_face": {
+            "assertion": "the dangling-id check reports RUN only when the registry was opened and parsed",
+            "all_pass": six_ok,
+            "lines": six_lines,
+        },
+        "readout_face": {
+            "assertion": "the progress-axis readout reruns byte-identically, fits 10 lines, and refuses a tampered detector",
+            "all_pass": ro_ok,
+            "lines": ro_lines,
         },
         "discrimination_matrix": {
             "assertion": "removing any registered fix must change a public reading",
@@ -1196,7 +1631,9 @@ def main() -> int:
         print()
         for line in summary["elevation_face"]["lines"]:
             print(f"  {line}")
-        for line in summary["path_grammar_face"]["lines"] + summary["hermetic_face"]["lines"]:
+        for line in (summary["path_grammar_face"]["lines"] + summary["hermetic_face"]["lines"]
+                     + summary["text_mode_face"]["lines"] + summary["ledger_six_cell_face"]["lines"]
+                     + summary["readout_face"]["lines"]):
             print(f"  {line}")
         print()
         for line in summary["rule_face"]["lines"]:

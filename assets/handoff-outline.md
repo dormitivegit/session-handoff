@@ -207,7 +207,9 @@ Explain impact and recovery path. Do not manufacture risks for symmetry.
 
 ## 12. Copyable New-Session Opening (ship this with the handoff)
 
-Write a self-contained opening prompt tailored to the receiving role. It must put the receiver in receiver mode: *this is a handoff to act on, not reference material — verify the anchors, then run the cleared first action; return a HOLD/CONFLICT only if an anchor fails or the SOT is not unique; do not reply "please give me the task."* It should also state the task, current state, boundaries, cleared first action, required output, and whether the receiver must first report intake gaps.
+Write a self-contained opening prompt tailored to the receiving role. It must put the receiver in receiver mode: *this is a handoff to act on, not reference material — verify the anchors, then run the cleared first action; return a HOLD/CONFLICT only if an anchor fails or the SOT is not unique; do not reply "please give me the task."* It names the handoff file, the task in one line, the boundaries, and whether the receiver must first report intake gaps.
+
+**One plan, one place.** The opening activates only the first authorized action and points to the handoff's single `CLEARED_FIRST_ACTION` by that name (e.g. *run item ① of `CLEARED_FIRST_ACTION`, then continue in its order; done and stop conditions are in the same field*). Do not copy the ordered steps, their done conditions, or a list of units into the opening: receivers execute the opening first, so a second copy of the plan is the one that gets followed, and any unit it drops is silently skipped. Load-bearing points the receiver is asked to restate are checks on understanding, not a second task list.
 
 It must also carry the **receipt duty**: one line telling the receiver to write a separate Receiver Outcome Receipt (see below) when its first work cycle ends or stops, naming the destination path. The receiving session reads this handoff and nothing else from this skill — a duty left in the skill files never reaches it.
 
